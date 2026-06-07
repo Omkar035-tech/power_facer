@@ -16,10 +16,12 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: List directory contents
+      run: ls -la
     - name: Use Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
-    - run: cd power_facer && npm ci
-    - run: cd power_facer && npm run jest
-    - run: cd power_facer && npm run build
+    - run: ls -la && npm ci
+    - run: ls -la && npm run jest
+    - run: ls -la && npm run build
