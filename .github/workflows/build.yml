@@ -23,8 +23,6 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-        cache-dependency-path: power_facer/package-lock.json
     - run: npm ci
     - run: npm run jest
     - run: npm run build

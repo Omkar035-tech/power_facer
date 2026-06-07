@@ -1,0 +1,8 @@
+{
+  "name": "face-tracker-app",
+  "version": "1.0.0",
+  "description": "Face Tracker App",
+  "scripts": {
+    "build": "echo 'Static site, no build needed'"
+  }
+}
