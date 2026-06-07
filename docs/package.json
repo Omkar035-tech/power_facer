@@ -1,8 +1,10 @@
 {
-  "name": "face-tracker-app",
+  "name": "face-tracker",
   "version": "1.0.0",
-  "description": "Face Tracker App",
+  "private": true,
+  "description": "Face tracker with VRM",
   "scripts": {
+    "dev": "echo 'Static site, no dev server needed'",
     "build": "echo 'Static site, no build needed'"
   }
 }
