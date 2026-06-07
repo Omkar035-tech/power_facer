@@ -1021,6 +1021,22 @@ const importSettings = (file) => {
             // Update cutout settings
             if (settings.cutoutSettings) {
                 Object.assign(cutoutSettings, settings.cutoutSettings);
+                
+                // Update all cutout UI inputs
+                const enableCutoutEl = document.getElementById("enable-cutout");
+                if (enableCutoutEl) enableCutoutEl.checked = cutoutSettings.enabled;
+                
+                const zOffsetLeEl = document.getElementById("z-offset-le");
+                if (zOffsetLeEl) zOffsetLeEl.value = cutoutSettings.leZ;
+                
+                const zOffsetReEl = document.getElementById("z-offset-re");
+                if (zOffsetReEl) zOffsetReEl.value = cutoutSettings.reZ;
+                
+                const zOffsetMEl = document.getElementById("z-offset-m");
+                if (zOffsetMEl) zOffsetMEl.value = cutoutSettings.mZ;
+                
+                const scaleEl = document.getElementById("cutout-scale");
+                if (scaleEl) scaleEl.value = cutoutSettings.scale;
             }
             
             // Update brush settings
@@ -1058,8 +1074,18 @@ const importSettings = (file) => {
                     return new Promise((resolve) => {
                         const img = new Image();
                         img.onload = () => {
-                            const ctx = maskCanvases[key].getContext("2d");
-                            ctx.drawImage(img, 0, 0);
+                            const canvasId = key === "eyeL" ? "eye-l-canvas" : key === "eyeR" ? "eye-r-canvas" : "mouth-canvas";
+                            const previewCanvas = document.getElementById(canvasId);
+                            const previewCtx = previewCanvas?.getContext("2d");
+                            const maskCtx = maskCanvases[key].getContext("2d");
+                            
+                            maskCtx.drawImage(img, 0, 0);
+                            
+                            // Also update the preview canvas
+                            if (previewCtx) {
+                                previewCtx.drawImage(img, 0, 0);
+                            }
+                            
                             resolve();
                         };
                         img.src = dataUrl;
@@ -1073,6 +1099,13 @@ const importSettings = (file) => {
                 ]).then(() => {
                     updateSettings();
                     drawGizmo();
+                    
+                    // Also update the 3D cutout plane textures if they exist
+                    Object.keys(cutoutTextures).forEach(key => {
+                        if (cutoutTextures[key]) {
+                            cutoutTextures[key].needsUpdate = true;
+                        }
+                    });
                 });
             } else {
                 updateSettings();
