@@ -2,33 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <!-- HTML Meta Tags -->
-    <title>KalidoKit - Face and Body Rig Solver</title>
+    <title>Face Tracker</title>
     <meta
       name="description"
-      content="Track face and body rigs just your browser webcam!"
-    />
-
-    <!-- Twitter Meta Tags -->
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta property="twitter:domain" content="kit.kalidoface.com" />
-    <meta property="twitter:url" content="https://kit.kalidoface.com/" />
-    <meta name="twitter:title" content="KalidoKit - Face and Body Rig Solver" />
-    <meta
-      name="twitter:description"
-      content="Track face and body rigs just your browser webcam!"
-    />
-    <meta
-      name="twitter:image"
-      content="https://cdn.glitch.com/239c5934-4d83-4c5c-bef6-44dcdb04c8fb%2Fkalidoface-meta.jpg?v=1630110302224"
+      content="Track face and body rigs in your browser"
     />
     <meta
       name="viewport"
       content="viewport-fit=cover, user-scalable=no, width=device-width, initial-scale=1, maximum-scale=1"
-    />
-    <link
-      rel="shortcut icon"
-      href="https://yeemachine.github.io/kalidoface-live2d-models/Icons/icon-circle.svg"
     />
     <!--     Basic Three.js -->
     <script src="https://unpkg.com/three@0.133.0/build/three.js"></script>
@@ -57,46 +38,91 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <div class="preview">
-      <video class="input_video" width="1280px" height="720px"></video>
+    <div id="preview-container" class="preview-container">
+      <video id="video-element" class="input_video" width="1280px" height="720px"></video>
       <canvas class="guides"></canvas>
-      <section>
-        <a href="/live2d/"><p>Live2D</p></a>
-        <a class="current" href="/"><p>VRM</p></a>  
-      </section>
     </div>
-    <h1 class="notranslate">
-      <a href="https://3d.kalidoface.com">kalidoface</a>
-    </h1>
-    <nav>
-      <button id="toggle-panel" class="upload-button"><p>Face Cutout</p></button>
-      <label class="upload-button" for="vrm-upload">
-        <p>Load VRM</p>
-      </label>
+    
+    <nav class="navbar">
+      <button id="toggle-panel" class="btn btn-primary">⚙️ Settings</button>
+      <label class="btn btn-primary" for="vrm-upload">📁 Load VRM</label>
       <input type="file" id="vrm-upload" accept=".vrm" style="display: none;" />
-
+      <button id="export-settings" class="btn btn-success">💾 Export</button>
+      <label class="btn btn-success" for="import-settings">📂 Import</label>
+      <input type="file" id="import-settings" accept=".json" style="display: none;" />
     </nav>
 
     <div id="side-panel" class="side-panel">
-      <h2>Face Cutout Settings</h2>
-      <div class="setting-group">
-        <label><input type="checkbox" id="enable-cutout" /> Enable Overlays</label>
+      <div class="panel-header">
+        <h2>Settings</h2>
+        <button id="close-panel" class="close-btn">✕</button>
       </div>
+      
       <div class="setting-group">
-        <h3>Positioning</h3>
+        <h3>General</h3>
+        <label class="toggle-label">
+          <input type="checkbox" id="freeze-model" />
+          <span>Freeze 3D Model</span>
+        </label>
+      </div>
+
+      <div class="setting-group">
+        <h3>Visibility</h3>
+        <label class="toggle-label">
+          <input type="checkbox" id="show-video" checked />
+          <span>Show Video</span>
+        </label>
+        <label class="toggle-label">
+          <input type="checkbox" id="show-landmarks" checked />
+          <span>Show Landmarks</span>
+        </label>
+        <label class="toggle-label">
+          <input type="checkbox" id="show-ui" checked />
+          <span>Show UI</span>
+        </label>
+      </div>
+
+      <div class="setting-group">
+        <h3>Face Cutouts</h3>
+        <label class="toggle-label">
+          <input type="checkbox" id="enable-cutout" />
+          <span>Enable Overlays</span>
+        </label>
+
+        <h4>Positioning</h4>
+        <div class="gizmo-controls">
+          <button id="gizmo-zoom-out" class="btn btn-small">-</button>
+          <button id="gizmo-zoom-in" class="btn btn-small">+</button>
+        </div>
         <div class="gizmo-container">
           <canvas id="gizmo-canvas" width="260" height="200" style="background: #1a1a1a; border-radius: 8px; border: 1px solid #333;"></canvas>
           <p class="gizmo-legend">L = Left Eye &nbsp; R = Right Eye &nbsp; M = Mouth</p>
         </div>
-        <br>
-        <label>Z-Offset: <input type="range" id="z-offset" min="0" max="0.5" step="0.01" value="0.1" /></label>
-        <label>Scale: <input type="range" id="cutout-scale" min="0.1" max="2" step="0.1" value="0.5" /></label>
+        
+        <div class="offset-controls">
+          <div class="offset-item">
+            <label>Left Eye Z-Offset:</label>
+            <input type="number" id="z-offset-le" step="0.01" value="0.1" />
+          </div>
+          <div class="offset-item">
+            <label>Right Eye Z-Offset:</label>
+            <input type="number" id="z-offset-re" step="0.01" value="0.1" />
+          </div>
+          <div class="offset-item">
+            <label>Mouth Z-Offset:</label>
+            <input type="number" id="z-offset-m" step="0.01" value="0.1" />
+          </div>
+        </div>
+
+        <label>Scale: <input type="number" id="cutout-scale" step="0.1" value="0.5" /></label>
       </div>
 
       <div class="setting-group">
         <h3>Background</h3>
-        <label><input type="checkbox" id="bg-solid-enable" /> Solid background color</label>
-        <br>
+        <label class="toggle-label">
+          <input type="checkbox" id="bg-solid-enable" />
+          <span>Solid Background Color</span>
+        </label>
         <label>Color: <input type="color" id="bg-color-picker" value="#000000" /></label>
       </div>
 
@@ -133,10 +159,6 @@
         </div>
       </div>
     </div>
-    <p class="linkOut">
-      Visit
-      <a id="full" href="https://kalidoface.com">the full Vtuber App</a>!
-    </p>
     <svg id="gizmo-overlay" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 10;"></svg>
     <script src="./script.js" type="module" defer></script>
   </body>

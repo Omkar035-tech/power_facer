@@ -20,10 +20,9 @@ let cutoutTextures = {
 };
 const cutoutSettings = {
     enabled: false,
-    leX: 0.1, leY: 0,
-    reX: -0.1, reY: 0,
-    mX: 0, mY: -0.15,
-    zOffset: 0.1,
+    leX: 0.1, leY: 0, leZ: 0.1,
+    reX: -0.1, reY: 0, reZ: 0.1,
+    mX: 0, mY: -0.15, mZ: 0.1,
     scale: 0.5
 };
 
@@ -59,6 +58,140 @@ const tmpVec = new THREE.Vector3();
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
+// Transform gizmo variables
+let isDraggingGizmo = false;
+let dragAxis = null;
+const dragStart = new THREE.Vector2();
+let initialPlaneRotation = 0;
+let rotateStartAngle = 0;
+
+// Update Gizmo Overlay
+function updateGizmoOverlay() {
+    const overlay = document.getElementById('gizmo-overlay');
+    if (!overlay) return;
+    overlay.innerHTML = '';
+    
+    if (!selectedPlane || !cutoutPlanes[selectedPlane]) return;
+    
+    const plane = cutoutPlanes[selectedPlane];
+    
+    // Get plane world position and project to screen
+    plane.getWorldPosition(tmpVec);
+    tmpVec.project(orbitCamera);
+    const cx = (tmpVec.x * 0.5 + 0.5) * window.innerWidth;
+    const cy = (-tmpVec.y * 0.5 + 0.5) * window.innerHeight;
+    
+    // Gizmo size
+    const size = 60;
+    
+    // Create SVG elements
+    const ns = 'http://www.w3.org/2000/svg';
+    
+    // Helper to create line
+    const createLine = (x1, y1, x2, y2, color, strokeWidth = 3) => {
+        const line = document.createElementNS(ns, 'line');
+        line.setAttribute('x1', x1);
+        line.setAttribute('y1', y1);
+        line.setAttribute('x2', x2);
+        line.setAttribute('y2', y2);
+        line.setAttribute('stroke', color);
+        line.setAttribute('stroke-width', strokeWidth);
+        line.style.pointerEvents = 'stroke';
+        return line;
+    };
+    
+    // Helper to create arrow
+    const createArrow = (x, y, color) => {
+        const arrow = document.createElementNS(ns, 'polygon');
+        arrow.setAttribute('points', `${x},${y-8} ${x+6},${y+8} ${x-6},${y+8}`);
+        arrow.setAttribute('fill', color);
+        return arrow;
+    };
+    
+    // Helper to create circle
+    const createCircle = (x, y, r, color) => {
+        const circle = document.createElementNS(ns, 'circle');
+        circle.setAttribute('cx', x);
+        circle.setAttribute('cy', y);
+        circle.setAttribute('r', r);
+        circle.setAttribute('fill', color);
+        circle.style.pointerEvents = 'fill';
+        return circle;
+    };
+    
+    // Center circle (move)
+    const centerCircle = createCircle(cx, cy, 12, '#ffffff');
+    centerCircle.addEventListener('mousedown', (e) => {
+        e.stopPropagation();
+        isDraggingGizmo = true;
+        dragAxis = 'xy';
+        orbitControls.enabled = false;
+        dragStart.set(e.clientX, e.clientY);
+    });
+    overlay.appendChild(centerCircle);
+    
+    // X axis (red)
+    const xLine = createLine(cx, cy, cx + size, cy, '#ff0000');
+    xLine.addEventListener('mousedown', (e) => {
+        e.stopPropagation();
+        isDraggingGizmo = true;
+        dragAxis = 'x';
+        orbitControls.enabled = false;
+        dragStart.set(e.clientX, e.clientY);
+    });
+    overlay.appendChild(xLine);
+    const xArrow = createArrow(cx + size, cy, '#ff0000');
+    overlay.appendChild(xArrow);
+    
+    // Y axis (green)
+    const yLine = createLine(cx, cy, cx, cy - size, '#00ff00');
+    yLine.addEventListener('mousedown', (e) => {
+        e.stopPropagation();
+        isDraggingGizmo = true;
+        dragAxis = 'y';
+        orbitControls.enabled = false;
+        dragStart.set(e.clientX, e.clientY);
+    });
+    overlay.appendChild(yLine);
+    const yArrow = createArrow(cx, cy - size, '#00ff00');
+    yArrow.setAttribute('transform', `rotate(90, ${cx}, ${cy - size})`);
+    overlay.appendChild(yArrow);
+    
+    // Z axis (blue)
+    const zLine = createLine(cx, cy, cx + size * 0.7, cy + size * 0.7, '#0000ff');
+    zLine.addEventListener('mousedown', (e) => {
+        e.stopPropagation();
+        isDraggingGizmo = true;
+        dragAxis = 'z';
+        orbitControls.enabled = false;
+        dragStart.set(e.clientX, e.clientY);
+    });
+    overlay.appendChild(zLine);
+    const zArrow = createArrow(cx + size * 0.7, cy + size * 0.7, '#0000ff');
+    zArrow.setAttribute('transform', `rotate(45, ${cx + size * 0.7}, ${cy + size * 0.7})`);
+    overlay.appendChild(zArrow);
+    
+    // Rotation handle (circle around center)
+    const rotationCircle = document.createElementNS(ns, 'circle');
+    rotationCircle.setAttribute('cx', cx);
+    rotationCircle.setAttribute('cy', cy);
+    rotationCircle.setAttribute('r', size + 20);
+    rotationCircle.setAttribute('fill', 'none');
+    rotationCircle.setAttribute('stroke', '#ffff00');
+    rotationCircle.setAttribute('stroke-width', 3);
+    rotationCircle.style.pointerEvents = 'stroke';
+    rotationCircle.addEventListener('mousedown', (e) => {
+        e.stopPropagation();
+        isDraggingGizmo = true;
+        dragAxis = 'rotate';
+        orbitControls.enabled = false;
+        dragStart.set(e.clientX, e.clientY);
+        initialPlaneRotation = plane.rotation.z;
+        rotateStartAngle = Math.atan2(e.clientY - cy, e.clientX - cx);
+    });
+    overlay.appendChild(rotationCircle);
+}
+
 function animate() {
     requestAnimationFrame(animate);
 
@@ -68,10 +201,8 @@ function animate() {
     }
     renderer.render(scene, orbitCamera);
     
-    // Feature 1: Update Gizmo Overlay
-    if (typeof updateGizmoOverlay === "function") {
-        updateGizmoOverlay();
-    }
+    // Update Gizmo Overlay
+    updateGizmoOverlay();
 }
 animate();
 
@@ -127,14 +258,20 @@ vrmUpload.addEventListener("change", (event) => {
 // Face Cutout UI Handlers
 const togglePanel = document.getElementById("toggle-panel");
 const sidePanel = document.getElementById("side-panel");
+const closePanel = document.getElementById("close-panel");
 togglePanel.addEventListener("click", () => sidePanel.classList.toggle("open"));
+closePanel.addEventListener("click", () => sidePanel.classList.remove("open"));
 
 const updateSettings = () => {
     cutoutSettings.enabled = document.getElementById("enable-cutout").checked;
-    // X/Y settings are now managed by the gizmo, but we still need to read other settings
-    const zOffsetEl = document.getElementById("z-offset");
+    // Read individual z-offsets
+    const zOffsetLeEl = document.getElementById("z-offset-le");
+    const zOffsetReEl = document.getElementById("z-offset-re");
+    const zOffsetMEl = document.getElementById("z-offset-m");
     const scaleEl = document.getElementById("cutout-scale");
-    if (zOffsetEl) cutoutSettings.zOffset = parseFloat(zOffsetEl.value);
+    if (zOffsetLeEl) cutoutSettings.leZ = parseFloat(zOffsetLeEl.value);
+    if (zOffsetReEl) cutoutSettings.reZ = parseFloat(zOffsetReEl.value);
+    if (zOffsetMEl) cutoutSettings.mZ = parseFloat(zOffsetMEl.value);
     if (scaleEl) cutoutSettings.scale = parseFloat(scaleEl.value);
 
     if (cutoutPlanes.eyeL) {
@@ -142,15 +279,21 @@ const updateSettings = () => {
         cutoutPlanes.eyeR.visible = cutoutSettings.enabled;
         cutoutPlanes.mouth.visible = cutoutSettings.enabled;
 
-        cutoutPlanes.eyeL.position.set(cutoutSettings.leX, cutoutSettings.leY, cutoutSettings.zOffset);
-        cutoutPlanes.eyeR.position.set(cutoutSettings.reX, cutoutSettings.reY, cutoutSettings.zOffset);
-        cutoutPlanes.mouth.position.set(cutoutSettings.mX, cutoutSettings.mY, cutoutSettings.zOffset);
+        cutoutPlanes.eyeL.position.set(cutoutSettings.leX, cutoutSettings.leY, cutoutSettings.leZ);
+        cutoutPlanes.eyeR.position.set(cutoutSettings.reX, cutoutSettings.reY, cutoutSettings.reZ);
+        cutoutPlanes.mouth.position.set(cutoutSettings.mX, cutoutSettings.mY, cutoutSettings.mZ);
 
         const s = cutoutSettings.scale;
         cutoutPlanes.eyeL.scale.set(s, s, s);
         cutoutPlanes.eyeR.scale.set(s, s, s);
         cutoutPlanes.mouth.scale.set(s, s, s);
     }
+
+    // Update input fields with current values
+    if (zOffsetLeEl) zOffsetLeEl.value = cutoutSettings.leZ;
+    if (zOffsetReEl) zOffsetReEl.value = cutoutSettings.reZ;
+    if (zOffsetMEl) zOffsetMEl.value = cutoutSettings.mZ;
+    if (scaleEl) scaleEl.value = cutoutSettings.scale;
 
     // Feature 3: Background logic (Fixed)
     const bgEnableEl = document.getElementById("bg-solid-enable");
@@ -810,14 +953,16 @@ window.addEventListener("mousemove", (e) => {
         if (key === 'eyeL') {
             cutoutSettings.leX = plane.position.x;
             cutoutSettings.leY = plane.position.y;
+            cutoutSettings.leZ = plane.position.z;
         } else if (key === 'eyeR') {
             cutoutSettings.reX = plane.position.x;
             cutoutSettings.reY = plane.position.y;
+            cutoutSettings.reZ = plane.position.z;
         } else if (key === 'mouth') {
             cutoutSettings.mX = plane.position.x;
             cutoutSettings.mY = plane.position.y;
+            cutoutSettings.mZ = plane.position.z;
         }
-        cutoutSettings.zOffset = plane.position.z;
         
         updateSettings();
     }
@@ -828,7 +973,183 @@ window.addEventListener("mouseup", () => {
     activeDot = null;
     isDraggingGizmo = false;
     dragAxis = null;
-    orbitControls.enabled = true;
+    // Only re-enable orbit controls if freeze model is not checked
+    if (!document.getElementById("freeze-model").checked) {
+        orbitControls.enabled = true;
+    }
+    drawGizmo();
+});
+
+/* EXPORT/IMPORT SETTINGS */
+const exportSettings = () => {
+    // Collect all settings
+    const settings = {
+        cutoutSettings: { ...cutoutSettings },
+        brushSettings: { ...brushSettings },
+        visibility: {
+            showVideo: document.getElementById("show-video")?.checked ?? true,
+            showLandmarks: document.getElementById("show-landmarks")?.checked ?? true,
+            showUI: document.getElementById("show-ui")?.checked ?? true
+        },
+        freezeModel: document.getElementById("freeze-model")?.checked ?? false,
+        bgSolidEnable: document.getElementById("bg-solid-enable")?.checked ?? false,
+        bgColor: document.getElementById("bg-color-picker")?.value ?? "#000000",
+        // Masks as data URLs
+        masks: {
+            eyeL: maskCanvases.eyeL?.toDataURL() ?? "",
+            eyeR: maskCanvases.eyeR?.toDataURL() ?? "",
+            mouth: maskCanvases.mouth?.toDataURL() ?? ""
+        }
+    };
+    
+    // Download as JSON
+    const blob = new Blob([JSON.stringify(settings, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "face-tracker-settings.json";
+    a.click();
+    URL.revokeObjectURL(url);
+};
+
+const importSettings = (file) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const settings = JSON.parse(e.target.result);
+            
+            // Update cutout settings
+            if (settings.cutoutSettings) {
+                Object.assign(cutoutSettings, settings.cutoutSettings);
+            }
+            
+            // Update brush settings
+            if (settings.brushSettings) {
+                Object.assign(brushSettings, settings.brushSettings);
+                document.getElementById("brush-size").value = brushSettings.size;
+                document.getElementById("brush-hardness").value = brushSettings.hardness;
+            }
+            
+            // Update visibility
+            if (settings.visibility) {
+                if (document.getElementById("show-video")) document.getElementById("show-video").checked = settings.visibility.showVideo;
+                if (document.getElementById("show-landmarks")) document.getElementById("show-landmarks").checked = settings.visibility.showLandmarks;
+                if (document.getElementById("show-ui")) document.getElementById("show-ui").checked = settings.visibility.showUI;
+                updateVisibility();
+            }
+            
+            // Update freeze model
+            if (settings.freezeModel !== undefined && document.getElementById("freeze-model")) {
+                document.getElementById("freeze-model").checked = settings.freezeModel;
+                updateFreezeModel();
+            }
+            
+            // Update background
+            if (settings.bgSolidEnable !== undefined && document.getElementById("bg-solid-enable")) {
+                document.getElementById("bg-solid-enable").checked = settings.bgSolidEnable;
+            }
+            if (settings.bgColor && document.getElementById("bg-color-picker")) {
+                document.getElementById("bg-color-picker").value = settings.bgColor;
+            }
+            
+            // Load masks
+            if (settings.masks) {
+                const loadMask = (key, dataUrl) => {
+                    return new Promise((resolve) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            const ctx = maskCanvases[key].getContext("2d");
+                            ctx.drawImage(img, 0, 0);
+                            resolve();
+                        };
+                        img.src = dataUrl;
+                    });
+                };
+                
+                Promise.all([
+                    settings.masks.eyeL ? loadMask("eyeL", settings.masks.eyeL) : Promise.resolve(),
+                    settings.masks.eyeR ? loadMask("eyeR", settings.masks.eyeR) : Promise.resolve(),
+                    settings.masks.mouth ? loadMask("mouth", settings.masks.mouth) : Promise.resolve()
+                ]).then(() => {
+                    updateSettings();
+                    drawGizmo();
+                });
+            } else {
+                updateSettings();
+                drawGizmo();
+            }
+        } catch (err) {
+            console.error("Failed to import settings:", err);
+        }
+    };
+    reader.readAsText(file);
+};
+
+// Attach export/import handlers
+document.getElementById("export-settings").addEventListener("click", exportSettings);
+document.getElementById("import-settings").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        importSettings(file);
+    }
+    e.target.value = ""; // Reset input
+});
+
+/* FREEZE MODEL TOGGLE */
+let originalControlsState = { enabled: true };
+const updateFreezeModel = () => {
+    const freeze = document.getElementById("freeze-model").checked;
+    if (freeze) {
+        originalControlsState.enabled = orbitControls.enabled;
+        orbitControls.enabled = false;
+    } else {
+        orbitControls.enabled = true;
+    }
+};
+document.getElementById("freeze-model").addEventListener("change", updateFreezeModel);
+
+/* VISIBILITY TOGGLES */
+const updateVisibility = () => {
+    const showVideo = document.getElementById("show-video")?.checked ?? true;
+    const showLandmarks = document.getElementById("show-landmarks")?.checked ?? true;
+    const showUI = document.getElementById("show-ui")?.checked ?? true;
+    
+    // Preview container (video and landmarks)
+    const previewContainer = document.querySelector(".preview-container");
+    if (previewContainer) {
+        previewContainer.style.display = showVideo ? "flex" : "none";
+    }
+    
+    // Guide canvas (landmarks)
+    const guideCanvas = document.querySelector("canvas.guides");
+    if (guideCanvas) {
+        guideCanvas.style.display = showLandmarks ? "block" : "none";
+    }
+    
+    // UI elements (navbar and side panel)
+    const navbar = document.querySelector(".navbar");
+    if (navbar) {
+        navbar.style.display = showUI ? "flex" : "none";
+    }
+};
+document.getElementById("show-video").addEventListener("change", updateVisibility);
+document.getElementById("show-landmarks").addEventListener("change", updateVisibility);
+document.getElementById("show-ui").addEventListener("change", updateVisibility);
+
+/* GIZMO AREA RESIZE */
+let gizmoCanvasSize = { width: 260, height: 200 };
+document.getElementById("gizmo-zoom-in").addEventListener("click", () => {
+    gizmoCanvasSize.width = Math.min(gizmoCanvasSize.width + 20, 500);
+    gizmoCanvasSize.height = Math.min(gizmoCanvasSize.height + 20, 400);
+    gizmoCanvas.width = gizmoCanvasSize.width;
+    gizmoCanvas.height = gizmoCanvasSize.height;
+    drawGizmo();
+});
+document.getElementById("gizmo-zoom-out").addEventListener("click", () => {
+    gizmoCanvasSize.width = Math.max(gizmoCanvasSize.width - 20, 100);
+    gizmoCanvasSize.height = Math.max(gizmoCanvasSize.height - 20, 100);
+    gizmoCanvas.width = gizmoCanvasSize.width;
+    gizmoCanvas.height = gizmoCanvasSize.height;
     drawGizmo();
 });
 
