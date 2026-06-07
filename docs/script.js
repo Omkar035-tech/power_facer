@@ -121,12 +121,7 @@ togglePanel.addEventListener("click", () => sidePanel.classList.toggle("open"));
 
 const updateSettings = () => {
     cutoutSettings.enabled = document.getElementById("enable-cutout").checked;
-    cutoutSettings.leX = parseFloat(document.getElementById("le-x").value);
-    cutoutSettings.leY = parseFloat(document.getElementById("le-y").value);
-    cutoutSettings.reX = parseFloat(document.getElementById("re-x").value);
-    cutoutSettings.reY = parseFloat(document.getElementById("re-y").value);
-    cutoutSettings.mX = parseFloat(document.getElementById("m-x").value);
-    cutoutSettings.mY = parseFloat(document.getElementById("m-y").value);
+    // X/Y settings are now managed by the gizmo, but we still need to read other settings
     cutoutSettings.zOffset = parseFloat(document.getElementById("z-offset").value);
     cutoutSettings.scale = parseFloat(document.getElementById("cutout-scale").value);
 
@@ -144,6 +139,21 @@ const updateSettings = () => {
         cutoutPlanes.eyeR.scale.set(s, s, s);
         cutoutPlanes.mouth.scale.set(s, s, s);
     }
+
+    // Feature 3: Background logic
+    const bgEnable = document.getElementById("bg-solid-enable").checked;
+    const bgColor = document.getElementById("bg-color-picker").value;
+    if (bgEnable) {
+        const color = new THREE.Color(bgColor);
+        scene.background = color;
+        renderer.setClearColor(color, 1);
+    } else {
+        scene.background = null;
+        renderer.setClearColor(0x000000, 0);
+    }
+
+    // Redraw Gizmo
+    if (typeof drawGizmo === "function") drawGizmo();
 };
 
 document.querySelectorAll(".side-panel input").forEach(el => el.addEventListener("input", updateSettings));
@@ -304,6 +314,13 @@ const updateCutouts = (landmarks, resultImage) => {
         try {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(imageSource, box.x, box.y, box.width, box.height, 0, 0, canvas.width, canvas.height);
+            
+            // Feature 1: Apply Mask
+            if (maskCanvases && maskCanvases[key]) {
+                ctx.globalCompositeOperation = "destination-in";
+                ctx.drawImage(maskCanvases[key], 0, 0);
+                ctx.globalCompositeOperation = "source-over";
+            }
         } catch (e) {
             console.warn("drawImage failed for", key, e);
         }
@@ -507,3 +524,207 @@ const camera = new Camera(videoElement, {
     height: 480,
 });
 camera.start();
+
+/* FEATURE 1 — BRUSH ERASER FOR EACH CUTOUT CANVAS */
+const maskCanvases = { eyeL: null, eyeR: null, mouth: null };
+const brushSettings = { size: 10 };
+
+const initMasks = () => {
+    const configs = {
+        eyeL: { w: 100, h: 100 },
+        eyeR: { w: 100, h: 100 },
+        mouth: { w: 150, h: 100 }
+    };
+
+    Object.keys(configs).forEach(key => {
+        const { w, h } = configs[key];
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, w, h);
+        maskCanvases[key] = canvas;
+
+        const previewCanvas = document.getElementById(key === "eyeL" ? "eye-l-canvas" : key === "eyeR" ? "eye-r-canvas" : "mouth-canvas");
+        setupMaskPainting(previewCanvas, key);
+    });
+};
+
+const setupMaskPainting = (canvas, key) => {
+    let isPainting = false;
+    const wrapper = canvas.parentElement;
+    
+    const getPos = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return {
+            x: (clientX - rect.left) * (canvas.width / rect.width),
+            y: (clientY - rect.top) * (canvas.height / rect.height)
+        };
+    };
+
+    const paint = (e) => {
+         if (!isPainting) return;
+         const pos = getPos(e);
+         const ctx = maskCanvases[key].getContext("2d");
+         const activeTool = wrapper.querySelector(".tool-btn.active").dataset.tool;
+         
+         if (activeTool === "eraser") {
+             ctx.globalCompositeOperation = "destination-out";
+             ctx.fillStyle = "black";
+         } else {
+             ctx.globalCompositeOperation = "source-over";
+             ctx.fillStyle = "white";
+         }
+         
+         ctx.beginPath();
+         ctx.arc(pos.x, pos.y, brushSettings.size / 2, 0, Math.PI * 2);
+         ctx.fill();
+         
+         if (cutoutTextures[key]) cutoutTextures[key].needsUpdate = true;
+     };
+
+     canvas.addEventListener("mousedown", (e) => { isPainting = true; paint(e); });
+     canvas.addEventListener("mousemove", paint);
+     window.addEventListener("mouseup", () => isPainting = false);
+     
+     // Touch support
+     canvas.addEventListener("touchstart", (e) => { e.preventDefault(); isPainting = true; paint(e); });
+     canvas.addEventListener("touchmove", (e) => { e.preventDefault(); paint(e); });
+     canvas.addEventListener("touchend", () => isPainting = false);
+ 
+     // Toolbar logic
+     wrapper.querySelectorAll(".tool-btn").forEach(btn => {
+         btn.addEventListener("click", () => {
+             wrapper.querySelectorAll(".tool-btn").forEach(b => b.classList.remove("active"));
+             btn.classList.add("active");
+         });
+     });
+ 
+     wrapper.querySelector(".reset-mask").addEventListener("click", () => {
+         const ctx = maskCanvases[key].getContext("2d");
+         ctx.globalCompositeOperation = "source-over";
+         ctx.fillStyle = "white";
+         ctx.fillRect(0, 0, maskCanvases[key].width, maskCanvases[key].height);
+         if (cutoutTextures[key]) cutoutTextures[key].needsUpdate = true;
+     });
+ };
+
+document.getElementById("brush-size").addEventListener("input", (e) => {
+    brushSettings.size = parseInt(e.target.value);
+});
+
+/* FEATURE 2 — TRANSFORM GIZMO */
+const gizmoCanvas = document.getElementById("gizmo-canvas");
+const gizmoCtx = gizmoCanvas.getContext("2d");
+let activeDot = null;
+
+const drawGizmo = () => {
+    const w = gizmoCanvas.width;
+    const h = gizmoCanvas.height;
+    gizmoCtx.clearRect(0, 0, w, h);
+
+    // Background & Grid
+    gizmoCtx.fillStyle = "#1a1a1a";
+    gizmoCtx.beginPath();
+    gizmoCtx.roundRect(0, 0, w, h, 8);
+    gizmoCtx.fill();
+
+    gizmoCtx.strokeStyle = "#333";
+    gizmoCtx.lineWidth = 1;
+    for(let i=0; i<=10; i++) {
+        const x = (i/10) * w;
+        const y = (i/10) * h;
+        gizmoCtx.beginPath(); gizmoCtx.moveTo(x, 0); gizmoCtx.lineTo(x, h); gizmoCtx.stroke();
+        gizmoCtx.beginPath(); gizmoCtx.moveTo(0, y); gizmoCtx.lineTo(w, y); gizmoCtx.stroke();
+    }
+
+    // Dots
+    const dots = [
+        { label: "L", x: cutoutSettings.leX, y: cutoutSettings.leY, color: "#13a3f3", key: "le" },
+        { label: "R", x: cutoutSettings.reX, y: cutoutSettings.reY, color: "#13a3f3", key: "re" },
+        { label: "M", x: cutoutSettings.mX, y: cutoutSettings.mY, color: "#ff9800", key: "m" }
+    ];
+
+    dots.forEach(dot => {
+        const px = ((dot.x + 1) / 2) * w;
+        const py = (1 - (dot.y + 1) / 2) * h;
+
+        if (activeDot === dot.key) {
+            gizmoCtx.strokeStyle = "white";
+            gizmoCtx.lineWidth = 2;
+            gizmoCtx.beginPath();
+            gizmoCtx.arc(px, py, 12, 0, Math.PI * 2);
+            gizmoCtx.stroke();
+        }
+
+        gizmoCtx.fillStyle = dot.color;
+        gizmoCtx.beginPath();
+        gizmoCtx.arc(px, py, 8, 0, Math.PI * 2);
+        gizmoCtx.fill();
+
+        gizmoCtx.fillStyle = "white";
+        gizmoCtx.font = "bold 10px Arial";
+        gizmoCtx.textAlign = "center";
+        gizmoCtx.textBaseline = "middle";
+        gizmoCtx.fillText(dot.label, px, py);
+    });
+};
+
+const handleGizmoInteraction = () => {
+    const getDotAt = (x, y) => {
+        const w = gizmoCanvas.width;
+        const h = gizmoCanvas.height;
+        const dots = [
+            { x: cutoutSettings.leX, y: cutoutSettings.leY, key: "le" },
+            { x: cutoutSettings.reX, y: cutoutSettings.reY, key: "re" },
+            { x: cutoutSettings.mX, y: cutoutSettings.mY, key: "m" }
+        ];
+        return dots.find(dot => {
+            const px = ((dot.x + 1) / 2) * w;
+            const py = (1 - (dot.y + 1) / 2) * h;
+            const dist = Math.hypot(px - x, py - y);
+            return dist < 16;
+        });
+    };
+
+    gizmoCanvas.addEventListener("mousedown", (e) => {
+        const rect = gizmoCanvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const dot = getDotAt(x, y);
+        activeDot = dot ? dot.key : null;
+        drawGizmo();
+    });
+
+    window.addEventListener("mousemove", (e) => {
+        if (!activeDot) return;
+        const rect = gizmoCanvas.getBoundingClientRect();
+        const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+        const y = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
+        
+        const valX = (x / rect.width) * 2 - 1;
+        const valY = (1 - y / rect.height) * 2 - 1;
+
+        cutoutSettings[activeDot + "X"] = valX;
+        cutoutSettings[activeDot + "Y"] = valY;
+        
+        updateSettings();
+    });
+
+    window.addEventListener("mouseup", () => {
+        activeDot = null;
+        drawGizmo();
+    });
+};
+
+/* INITIALIZATION */
+initMasks();
+handleGizmoInteraction();
+drawGizmo();
+
+// Add listeners for background elements since we removed the generic querySelectorAll
+document.getElementById("bg-solid-enable").addEventListener("input", updateSettings);
+document.getElementById("bg-color-picker").addEventListener("input", updateSettings);

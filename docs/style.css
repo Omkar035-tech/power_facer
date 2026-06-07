@@ -179,6 +179,64 @@ a.current {
     padding: 0;
 }
 
+.gizmo-container {
+    margin: 10px 0;
+    text-align: center;
+}
+.gizmo-legend {
+    font-size: 11px;
+    color: #888;
+    margin-top: 5px;
+    padding: 0;
+}
+.preview-canvas-wrapper {
+    margin-bottom: 15px;
+    background: #222;
+    padding: 10px;
+    border-radius: 4px;
+    border: 1px solid #333;
+}
+.canvas-toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+    align-items: center;
+}
+.tool-btn {
+    background: #333;
+    border: 1px solid #444;
+    color: white;
+    padding: 4px 8px;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+.tool-btn:hover {
+    background: #444;
+}
+.tool-btn.active {
+    background: #13a3f3;
+    border-color: #13a3f3;
+}
+.reset-mask {
+    margin-left: auto;
+    background: #666;
+    border: none;
+    color: white;
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    cursor: pointer;
+}
+.preview-canvas-wrapper canvas {
+    background: #333;
+    border: 1px solid #555;
+    display: block;
+    margin: 0 auto;
+    cursor: crosshair;
+}
+
 @media only screen and (max-width: 600px) {
     video {
         max-width: 160px;
