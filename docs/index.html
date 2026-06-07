@@ -69,22 +69,39 @@
       <a href="https://3d.kalidoface.com">kalidoface</a>
     </h1>
     <nav>
-      <a href="https://www.npmjs.com/package/kalidokit">
-        <img
-          src="https://cdn.glitch.me/447b6603-7eae-4da6-957d-73ee30c8e731%2Fnpm.png?v=1635133318451"
-        />
-      </a>
-      <a href="https://github.com/yeemachine/kalidokit">
-        <img
-          src="https://cdn.glitch.me/447b6603-7eae-4da6-957d-73ee30c8e731%2Fgithub.png?v=1635133310517"
-        />
-      </a>
-      <a href="https://twitter.com/yeemachine">
-        <img
-          src="https://cdn.glitch.me/447b6603-7eae-4da6-957d-73ee30c8e731%2Ftwitter.png?v=1635133322561"
-        />
-      </a>
+      <button id="toggle-panel" class="upload-button"><p>Face Cutout</p></button>
+      <label class="upload-button" for="vrm-upload">
+        <p>Load VRM</p>
+      </label>
+      <input type="file" id="vrm-upload" accept=".vrm" style="display: none;" />
+
     </nav>
+
+    <div id="side-panel" class="side-panel">
+      <h2>Face Cutout Settings</h2>
+      <div class="setting-group">
+        <label><input type="checkbox" id="enable-cutout" /> Enable Overlays</label>
+      </div>
+      <div class="setting-group">
+        <h3>Positioning</h3>
+        <label>Left Eye X: <input type="range" id="le-x" min="-1" max="1" step="0.01" value="0.1" /></label>
+        <label>Left Eye Y: <input type="range" id="le-y" min="-1" max="1" step="0.01" value="0" /></label>
+        <br>
+        <label>Right Eye X: <input type="range" id="re-x" min="-1" max="1" step="0.01" value="-0.1" /></label>
+        <label>Right Eye Y: <input type="range" id="re-y" min="-1" max="1" step="0.01" value="0" /></label>
+        <br>
+        <label>Mouth X: <input type="range" id="m-x" min="-1" max="1" step="0.01" value="0" /></label>
+        <label>Mouth Y: <input type="range" id="m-y" min="-1" max="1" step="0.01" value="-0.15" /></label>
+        <br>
+        <label>Z-Offset: <input type="range" id="z-offset" min="0" max="0.5" step="0.01" value="0.1" /></label>
+        <label>Scale: <input type="range" id="cutout-scale" min="0.1" max="2" step="0.1" value="0.5" /></label>
+      </div>
+      <div class="preview-canvas-container">
+        <canvas id="eye-l-canvas" width="100" height="100"></canvas>
+        <canvas id="eye-r-canvas" width="100" height="100"></canvas>
+        <canvas id="mouth-canvas" width="150" height="100"></canvas>
+      </div>
+    </div>
     <p class="linkOut">
       Visit
       <a id="full" href="https://kalidoface.com">the full Vtuber App</a>!
