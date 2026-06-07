@@ -103,6 +103,7 @@
       <div class="setting-group">
         <h3>Cutout Masks</h3>
         <label>Brush Size: <input type="range" id="brush-size" min="2" max="30" value="10" /></label>
+        <label>Hardness: <input type="range" id="brush-hardness" min="0" max="100" value="80" step="1" /></label>
         
         <div class="preview-canvas-wrapper">
           <div class="canvas-toolbar">
@@ -136,6 +137,7 @@
       Visit
       <a id="full" href="https://kalidoface.com">the full Vtuber App</a>!
     </p>
+    <svg id="gizmo-overlay" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 10;"></svg>
     <script src="./script.js" type="module" defer></script>
   </body>
 </html>

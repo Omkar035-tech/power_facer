@@ -52,9 +52,17 @@ video {
 }
 body {
     margin: 0;
+    background: transparent;
 }
 canvas {
     display: block;
+}
+#gizmo-overlay {
+    pointer-events: none;
+}
+#gizmo-overlay * {
+    pointer-events: all;
+    cursor: pointer;
 }
 .guides {
     position: absolute;
