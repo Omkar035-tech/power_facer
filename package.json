@@ -10,7 +10,7 @@
     "scripts": {
         "dev": "vite docs",
         "prebuild": "npm run lint && npm run fmt && rimraf dist",
-        "build": "vite build && npm run build:lib",
+        "build": "cp power_facer/dist/kalidokit.es.js docs/kalidokit.es.js",
         "build:watch": "vite build --watch && npm run build:lib:watch",
         "build:lib": "tsc -p .",
         "build:lib:watch": "tsc-watch -p .",

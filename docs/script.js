@@ -1,4 +1,5 @@
-import * as Kalidokit from "./dist/kalidokit.es.js";
+    // import * as Kalidokit from "./dist/kalidokit.es.js";
+    const Kalidokit = window.Kalidokit;
 //Import Helper Functions from Kalidokit
 const remap = Kalidokit.Utils.remap;
 const clamp = Kalidokit.Utils.clamp;
